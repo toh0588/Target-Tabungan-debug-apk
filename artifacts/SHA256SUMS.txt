@@ -1,0 +1,2 @@
+b1c0c3741ff424aaba111c84ed6bc198192eddeae41e80a186094c2611a075d1  Target-Tabungan-debug.apk
+31a20add3e6f70d4e24c561a47ef57d9a535d91a7fb723bdbc3bdf766e0aa5dd  output-metadata.json

@@ -5,6 +5,9 @@ on:
     branches:
       - main
       - master
+    paths-ignore:
+      - "artifacts/**"
+      - "README.md"
     tags:
       - "v*"
   pull_request:
@@ -69,19 +72,34 @@ jobs:
       - name: Bangun APK Debug
         run: gradle :app:assembleDebug --no-daemon
 
-      - name: Siapkan file APK untuk rilis
+      - name: Siapkan folder artefak bangunan (artifacts/)
         run: |
-          mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/Target-Tabungan-debug.apk
-          ls -lh dist/Target-Tabungan-debug.apk
+          mkdir -p artifacts
+          cp app/build/outputs/apk/debug/app-debug.apk artifacts/Target-Tabungan-debug.apk
+          cp app/build/outputs/apk/debug/output-metadata.json artifacts/output-metadata.json
+          (cd artifacts && sha256sum Target-Tabungan-debug.apk output-metadata.json > SHA256SUMS.txt)
+          ls -lh artifacts/
 
-      - name: Unggah APK ke GitHub Actions Artifacts
+      - name: Unggah folder artefak ke GitHub Actions Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Target-Tabungan-debug-apk
-          path: dist/Target-Tabungan-debug.apk
+          path: artifacts/
           if-no-files-found: error
           retention-days: 30
+
+      - name: Perbarui folder artifacts/ di repositori GitHub
+        if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add artifacts/Target-Tabungan-debug.apk artifacts/output-metadata.json artifacts/SHA256SUMS.txt
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(ci): perbarui artefak APK debug [skip ci]"
+            git push
+          else
+            echo "Tidak ada perubahan pada folder artifacts/."
+          fi
 
       - name: Tentukan tag GitHub Release
         if: github.event_name != 'pull_request'
@@ -111,5 +129,8 @@ jobs:
             Build otomatis APK Debug untuk aplikasi **Target Tabungan**.
 
             ### Unduhan Langsung
-            Unduh file `Target-Tabungan-debug.apk` pada bagian **Assets** di bawah ini untuk langsung memasangnya di perangkat Android.
-          files: dist/Target-Tabungan-debug.apk
+            Unduh file `Target-Tabungan-debug.apk` pada bagian **Assets** di bawah ini atau melalui folder [`artifacts/`](https://github.com/${{ github.repository }}/tree/main/artifacts) untuk langsung memasangnya di perangkat Android.
+          files: |
+            artifacts/Target-Tabungan-debug.apk
+            artifacts/output-metadata.json
+            artifacts/SHA256SUMS.txt
