@@ -1,0 +1,20 @@
+<resources>
+    <string name="app_name">Target Tabungan</string>
+    <string name="col_tabungan">Tabungan</string>
+    <string name="col_nominal">Nominal</string>
+    <string name="col_tanggal">Tanggal/Bulan/Tahun</string>
+    <string name="download_pdf">Unduh PDF</string>
+    <string name="share_pdf">Bagikan PDF</string>
+    <string name="auto_fill">Isi Otomatis</string>
+    <string name="sign_in_google">Masuk dengan Google</string>
+    <string name="sign_out">Keluar</string>
+    <string name="auth_tagline">Catat target tabungan Anda dalam tabel 3 kolom 61 baris yang rapi dan siap diunduh ke PDF.</string>
+    <string name="empty_row_hint">Ketuk untuk isi</string>
+    <string name="pdf_saved_message">File PDF berhasil disimpan</string>
+    <string name="pdf_error_message">Gagal membuat file PDF</string>
+    <string name="edit_row_title">Edit Baris #%1$d</string>
+    <string name="save">Simpan</string>
+    <string name="cancel">Batal</string>
+    <string name="clear_row">Kosongkan</string>
+    <string name="welcome_marquee_text">Selamat Datang di Aplikasi Hermanto</string>
+</resources>

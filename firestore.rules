@@ -1,0 +1,89 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidSavingsRow(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.rowIndex is int && data.rowIndex >= 1 && data.rowIndex <= 120 &&
+             data.tabungan is string && data.tabungan.size() <= 120 &&
+             data.nominal is int && data.nominal >= 0 && data.nominal <= 1000000000000 &&
+             data.tanggal is string && data.tanggal.size() <= 20 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidTargetConfig(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
+             data.subtitle is string && data.subtitle.size() <= 150 &&
+             data.targetAmount is int && data.targetAmount >= 0 && data.targetAmount <= 1000000000000 &&
+             data.totalDataRows is int && data.totalDataRows >= 1 && data.totalDataRows <= 120 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    match /users/{userId}/savings_rows/{rowId} {
+      allow get: if isOwner(userId) && isValidId(rowId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId) &&
+                       isValidId(rowId) &&
+                       incoming().keys().hasAll(['userId', 'rowIndex', 'tabungan', 'nominal', 'tanggal', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'rowIndex', 'tabungan', 'nominal', 'tanggal', 'createdAt', 'updatedAt']) &&
+                       isValidSavingsRow(incoming(), userId);
+
+      allow update: if isOwner(userId) &&
+                       isValidId(rowId) &&
+                       isValidSavingsRow(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['rowIndex', 'tabungan', 'nominal', 'tanggal', 'updatedAt']);
+
+      allow delete: if isOwner(userId) && isValidId(rowId);
+    }
+
+    match /users/{userId}/configs/{configId} {
+      allow get: if isOwner(userId) && isValidId(configId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId) &&
+                       isValidId(configId) &&
+                       incoming().keys().hasAll(['userId', 'title', 'subtitle', 'targetAmount', 'totalDataRows', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'title', 'subtitle', 'targetAmount', 'totalDataRows', 'createdAt', 'updatedAt']) &&
+                       isValidTargetConfig(incoming(), userId);
+
+      allow update: if isOwner(userId) &&
+                       isValidId(configId) &&
+                       isValidTargetConfig(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['title', 'subtitle', 'targetAmount', 'totalDataRows', 'updatedAt']);
+
+      allow delete: if isOwner(userId) && isValidId(configId);
+    }
+  }
+}

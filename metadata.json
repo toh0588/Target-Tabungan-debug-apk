@@ -1,0 +1,6 @@
+{
+  "name": "Target Tabungan",
+  "description": "Aplikasi pencatat target tabungan dengan tabel 3 kolom (Tabungan, Nominal, Tanggal/Bulan/Tahun) 61 baris dan ekspor ke PDF.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

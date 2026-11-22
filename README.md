@@ -1,11 +1,18 @@
-<div align="center">
+# Target Tabungan
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+Aplikasi Android **Target Tabungan** dengan tabel 3 kolom (**Tabungan**, **Nominal**, **Tanggal/Bulan/Tahun**) 61 baris, teks berjalan (*Selamat Datang di Aplikasi Hermanto*), sinkronisasi **Firebase Firestore**, dan ekspor dokumen ke **PDF**.
 
-  <h1>Built with AI Studio</h2>
+## Build APK Debug Otomatis (GitHub Actions & Releases)
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+Repositori ini telah dilengkapi alur kerja `.github/workflows/build-apk.yml` yang otomatis berjalan saat:
+- **Push** ke branch `main` atau `master`
+- **Push tag** versi seperti `v1.0.0`
+- **Pull Request** ke branch `main` atau `master`
+- **Pemicu manual** melalui tab **Actions -> Build Debug APK & Release -> Run workflow**
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
-
-</div>
+### Cara Mengunduh APK Langsung
+1. **Melalui GitHub Releases** (unduhan langsung file `.apk`):
+   - Buka menu **Releases** di halaman utama repositori GitHub Anda.
+   - Pilih rilis terbaru (misalnya `debug-latest` atau tag versi `v*`) dan unduh **`Target-Tabungan-debug.apk`** pada bagian **Assets**.
+2. **Melalui GitHub Actions Artifacts**:
+   - Buka tab **Actions**, pilih workflow run **Build Debug APK & Release** yang berstatus hijau, lalu unduh artifact **`Target-Tabungan-debug-apk`**.

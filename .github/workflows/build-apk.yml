@@ -1,0 +1,115 @@
+name: Build Debug APK & Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag rilis opsional (kosongkan untuk memakai tag debug-latest)"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-debug-apk:
+    name: Build APK Debug
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repositori
+        uses: actions/checkout@v4
+
+      - name: Siapkan JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Siapkan Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Siapkan Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.3.1"
+
+      - name: Siapkan debug keystore
+        run: |
+          if [ ! -f debug.keystore ]; then
+            if [ -f debug.keystore.base64 ]; then
+              base64 -d debug.keystore.base64 > debug.keystore
+            else
+              keytool -genkeypair -v \
+                -keystore debug.keystore \
+                -storepass android \
+                -alias androiddebugkey \
+                -keypass android \
+                -keyalg RSA \
+                -keysize 2048 \
+                -validity 10000 \
+                -dname "CN=Android Debug,O=Android,C=US"
+            fi
+          fi
+
+      - name: Jalankan Unit Test
+        run: gradle :app:testDebugUnitTest --tests "com.example.ExampleUnitTest" --no-daemon
+
+      - name: Bangun APK Debug
+        run: gradle :app:assembleDebug --no-daemon
+
+      - name: Siapkan file APK untuk rilis
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk dist/Target-Tabungan-debug.apk
+          ls -lh dist/Target-Tabungan-debug.apk
+
+      - name: Unggah APK ke GitHub Actions Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Target-Tabungan-debug-apk
+          path: dist/Target-Tabungan-debug.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Tentukan tag GitHub Release
+        if: github.event_name != 'pull_request'
+        id: release_meta
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ inputs.release_tag }}" ]; then
+            echo "tag=${{ inputs.release_tag }}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=debug-latest" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publikasikan APK ke GitHub Releases
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_meta.outputs.tag }}
+          name: "Target Tabungan (${{ steps.release_meta.outputs.tag }})"
+          prerelease: ${{ steps.release_meta.outputs.prerelease }}
+          make_latest: true
+          generate_release_notes: true
+          body: |
+            Build otomatis APK Debug untuk aplikasi **Target Tabungan**.
+
+            ### Unduhan Langsung
+            Unduh file `Target-Tabungan-debug.apk` pada bagian **Assets** di bawah ini untuk langsung memasangnya di perangkat Android.
+          files: dist/Target-Tabungan-debug.apk

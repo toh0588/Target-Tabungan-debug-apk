@@ -1,0 +1,110 @@
+{
+  "entities": {
+    "SavingsRow": {
+      "title": "SavingsRow",
+      "description": "A single row in the 3-column Target Tabungan savings ledger (Tabungan, Nominal, Tanggal/Bulan/Tahun).",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the row owner."
+        },
+        "rowIndex": {
+          "type": "integer",
+          "description": "1-based row number in the savings table (1..120)."
+        },
+        "tabungan": {
+          "type": "string",
+          "description": "Column 1: Savings entry label or description."
+        },
+        "nominal": {
+          "type": "integer",
+          "description": "Column 2: Savings amount in Indonesian Rupiah."
+        },
+        "tanggal": {
+          "type": "string",
+          "description": "Column 3: Date formatted as dd/MM/yyyy."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the row was created (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the row was last updated (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "userId",
+        "rowIndex",
+        "tabungan",
+        "nominal",
+        "tanggal",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "TargetConfig": {
+      "title": "TargetConfig",
+      "description": "Configuration for the user's Target Tabungan table title, goal amount, and row count.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the owner."
+        },
+        "title": {
+          "type": "string",
+          "description": "Document title (defaults to Target Tabungan)."
+        },
+        "subtitle": {
+          "type": "string",
+          "description": "Optional savings goal subtitle."
+        },
+        "targetAmount": {
+          "type": "integer",
+          "description": "Target total savings amount in Rupiah."
+        },
+        "totalDataRows": {
+          "type": "integer",
+          "description": "Number of data rows in the table (default 60 data rows + 1 header row = 61 total rows)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the config was created (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the config was last updated (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "userId",
+        "title",
+        "subtitle",
+        "targetAmount",
+        "totalDataRows",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/savings_rows/{rowId}": {
+      "schema": {
+        "$ref": "#/entities/SavingsRow"
+      },
+      "description": "User-scoped savings table rows."
+    },
+    "/users/{userId}/configs/{configId}": {
+      "schema": {
+        "$ref": "#/entities/TargetConfig"
+      },
+      "description": "User-scoped Target Tabungan configuration."
+    }
+  }
+}
