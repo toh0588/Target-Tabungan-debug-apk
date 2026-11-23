@@ -150,9 +150,35 @@ fun TargetTabunganScreen(
                     putExtra(Intent.EXTRA_SUBJECT, config.title.ifBlank { "Target Tabungan" })
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
-                context.startActivity(Intent.createChooser(shareIntent, "Bagikan / Buka PDF"))
+                context.startActivity(Intent.createChooser(shareIntent, "Bagikan PDF"))
             }.onFailure { err ->
                 snackbarHostState.showSnackbar(err.localizedMessage ?: "Gagal menyiapkan PDF")
+            }
+        }
+    }
+
+    fun openPdf(config: TargetConfig, slots: List<TableRowSlot>) {
+        scope.launch {
+            isExportingPdf = true
+            val res = SavingsPdfGenerator.writePdfToCacheForShare(context, config, slots)
+            isExportingPdf = false
+            res.onSuccess { fileUri ->
+                val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(fileUri, "application/pdf")
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                try {
+                    context.startActivity(viewIntent)
+                } catch (_: Exception) {
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "application/pdf"
+                        putExtra(Intent.EXTRA_STREAM, fileUri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(Intent.createChooser(shareIntent, "Buka / Bagikan PDF"))
+                }
+            }.onFailure { err ->
+                snackbarHostState.showSnackbar(err.localizedMessage ?: "Gagal membuka PDF")
             }
         }
     }
@@ -420,12 +446,14 @@ fun TargetTabunganScreen(
                                         .navigationBarsPadding(),
                                     verticalArrangement = Arrangement.spacedBy(12.dp),
                                 ) {
-                                    SummaryHeroCard(
+                                    SavingsSummaryCard(
                                         data = data,
                                         isExportingPdf = isExportingPdf,
                                         onAutoFill = { showAutoFillDialog = true },
                                         onEditConfig = { showConfigDialog = true },
+                                        onOpenPdf = { openPdf(data.config, data.allSlots) },
                                         onSharePdf = { sharePdf(data.config, data.allSlots) },
+                                        onJumpToRow = { rowIdx -> editingRowIndex = rowIdx },
                                     )
                                     FilterAndSearchBar(
                                         filter = data.filter,
@@ -459,12 +487,14 @@ fun TargetTabunganScreen(
                                                 .padding(top = 4.dp, bottom = 12.dp),
                                             verticalArrangement = Arrangement.spacedBy(12.dp),
                                         ) {
-                                            SummaryHeroCard(
+                                            SavingsSummaryCard(
                                                 data = data,
                                                 isExportingPdf = isExportingPdf,
                                                 onAutoFill = { showAutoFillDialog = true },
                                                 onEditConfig = { showConfigDialog = true },
+                                                onOpenPdf = { openPdf(data.config, data.allSlots) },
                                                 onSharePdf = { sharePdf(data.config, data.allSlots) },
+                                                onJumpToRow = { rowIdx -> editingRowIndex = rowIdx },
                                             )
                                             FilterAndSearchBar(
                                                 filter = data.filter,
@@ -515,6 +545,8 @@ fun TargetTabunganScreen(
 
     if (showAutoFillDialog && currentData != null) {
         AutoFillDialog(
+            targetAmount = currentData.config.targetAmount,
+            totalRows = currentData.allSlots.size,
             isMutating = isMutating,
             onDismiss = { showAutoFillDialog = false },
             onConfirm = { prefix, nominal, startMillis, interval, onlyEmpty ->
@@ -555,154 +587,6 @@ fun TargetTabunganScreen(
                 }
             },
         )
-    }
-}
-
-@Composable
-private fun SummaryHeroCard(
-    data: SavingsDashboardData,
-    isExportingPdf: Boolean,
-    onAutoFill: () -> Unit,
-    onEditConfig: () -> Unit,
-    onSharePdf: () -> Unit,
-) {
-    Card(
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-        ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Total Terkumpul",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = formatRupiah(data.totalSaved),
-                        style = MaterialTheme.typography.headlineMedium.copy(
-                            fontFamily = JetBrainsMonoFamily,
-                            fontWeight = FontWeight.Bold,
-                        ),
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    if (data.config.subtitle.isNotBlank()) {
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            text = data.config.subtitle,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    shape = RoundedCornerShape(10.dp),
-                ) {
-                    Text(
-                        text = "${data.filledCount}/${data.allSlots.size} terisi",
-                        style = MaterialTheme.typography.labelMedium,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    )
-                }
-            }
-
-            if (data.config.targetAmount > 0L) {
-                val progress = (data.totalSaved.toFloat() / data.config.targetAmount.toFloat())
-                    .coerceIn(0f, 1f)
-                Spacer(Modifier.height(12.dp))
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp)),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                )
-                Spacer(Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(
-                        text = "Target: ${formatRupiah(data.config.targetAmount)}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = "${(progress * 100).toInt()}%",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutlinedButton(
-                    onClick = onAutoFill,
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp)
-                        .testTag("hero_autofill_button"),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.AutoFixHigh,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text("Isi Otomatis", maxLines = 1)
-                }
-                OutlinedButton(
-                    onClick = onEditConfig,
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                    modifier = Modifier
-                        .height(48.dp)
-                        .testTag("hero_config_button"),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Tune,
-                        contentDescription = "Pengaturan Target",
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
-                Button(
-                    onClick = onSharePdf,
-                    enabled = !isExportingPdf,
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                    modifier = Modifier
-                        .height(48.dp)
-                        .testTag("hero_share_pdf_button"),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Share,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text("Buka PDF", maxLines = 1)
-                }
-            }
-        }
     }
 }
 

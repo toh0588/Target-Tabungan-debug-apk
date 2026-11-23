@@ -1,5 +1,6 @@
 package com.example.ui
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -49,8 +50,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.data.AutoFillInterval
 import com.example.data.MAX_DATA_ROWS
+import com.example.data.MAX_NOMINAL
 import com.example.data.TableRowSlot
 import com.example.data.TargetConfig
+import com.example.data.formatRupiah
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -173,6 +176,12 @@ fun EditRowSheet(
                 label = { Text("Nominal Rp (Kolom 2)") },
                 placeholder = { Text("Contoh: 50000") },
                 prefix = { Text("Rp ") },
+                supportingText = {
+                    val parsed = nominalText.toLongOrNull() ?: 0L
+                    if (parsed > 0L) {
+                        Text(formatRupiah(parsed))
+                    }
+                },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier
@@ -180,7 +189,35 @@ fun EditRowSheet(
                     .testTag("input_nominal"),
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                val quickAmounts = listOf(
+                    10_000L to "+10rb",
+                    25_000L to "+25rb",
+                    50_000L to "+50rb",
+                    100_000L to "+100rb",
+                    500_000L to "+500rb",
+                )
+                quickAmounts.forEach { (delta, label) ->
+                    FilterChip(
+                        selected = false,
+                        onClick = {
+                            val current = nominalText.toLongOrNull() ?: 0L
+                            val next = (current + delta).coerceAtMost(MAX_NOMINAL)
+                            nominalText = next.toString()
+                        },
+                        label = { Text(label) },
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
 
             OutlinedTextField(
                 value = tanggal,
@@ -294,6 +331,8 @@ fun EditRowSheet(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AutoFillDialog(
+    targetAmount: Long,
+    totalRows: Int,
     isMutating: Boolean,
     onDismiss: () -> Unit,
     onConfirm: (
@@ -305,7 +344,14 @@ fun AutoFillDialog(
     ) -> Unit,
 ) {
     var prefix by remember { mutableStateOf("Tabungan") }
-    var nominalText by remember { mutableStateOf("50000") }
+    var nominalText by remember {
+        val suggested = if (targetAmount > 0L && totalRows > 0) {
+            (targetAmount / totalRows).coerceAtLeast(1000L)
+        } else {
+            50000L
+        }
+        mutableStateOf(suggested.toString())
+    }
     var startDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
     var interval by remember { mutableStateOf(AutoFillInterval.HARIAN) }
     var onlyEmpty by remember { mutableStateOf(true) }
@@ -360,10 +406,27 @@ fun AutoFillDialog(
                     onValueChange = { raw -> nominalText = raw.filter { it.isDigit() }.take(12) },
                     label = { Text("Nominal per Baris") },
                     prefix = { Text("Rp ") },
+                    supportingText = {
+                        val parsed = nominalText.toLongOrNull() ?: 0L
+                        if (parsed > 0L) {
+                            Text("${formatRupiah(parsed)} / baris")
+                        }
+                    },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                 )
+
+                if (targetAmount > 0L && totalRows > 0) {
+                    val splitAmount = (targetAmount / totalRows).coerceAtLeast(1L)
+                    FilterChip(
+                        selected = nominalText.toLongOrNull() == splitAmount,
+                        onClick = { nominalText = splitAmount.toString() },
+                        label = {
+                            Text("Bagi rata target: ${formatRupiah(splitAmount)}/baris")
+                        },
+                    )
+                }
 
                 OutlinedButton(
                     onClick = { showDatePicker = true },

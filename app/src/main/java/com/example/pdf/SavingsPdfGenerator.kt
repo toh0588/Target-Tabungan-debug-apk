@@ -228,7 +228,22 @@ object SavingsPdfGenerator {
                     canvas.drawText("Tanggal Cetak", MARGIN_H + colStep * 3 + 8f, labelY, metaLabelPaint)
                     canvas.drawText(printDate, MARGIN_H + colStep * 3 + 8f, valY, metaValuePaint)
 
-                    y += boxHeight + 14f
+                    y += boxHeight + 8f
+
+                    if (config.targetAmount > 0L) {
+                        val ratio = (totalSaved.toFloat() / config.targetAmount.toFloat()).coerceIn(0f, 1f)
+                        val barTrack = RectF(MARGIN_H, y, PAGE_WIDTH - MARGIN_H, y + 6f)
+                        canvas.drawRoundRect(barTrack, 3f, 3f, rowAltPaint)
+                        canvas.drawRoundRect(barTrack, 3f, 3f, borderPaint)
+                        val fillWidth = (PAGE_WIDTH - MARGIN_H * 2) * ratio
+                        if (fillWidth > 2f) {
+                            val barFill = RectF(MARGIN_H, y, MARGIN_H + fillWidth, y + 6f)
+                            canvas.drawRoundRect(barFill, 3f, 3f, headerBgPaint)
+                        }
+                        y += 14f
+                    } else {
+                        y += 6f
+                    }
                 } else {
                     canvas.drawText(
                         "${config.title.ifBlank { "Target Tabungan" }} (Lanjutan)",
@@ -305,7 +320,7 @@ object SavingsPdfGenerator {
                 }
 
                 // Page Footer
-                val footerText = "Target Tabungan  •  Halaman ${pageIdx + 1} dari $totalPages"
+                val footerText = "Target Tabungan • Aplikasi Hermanto  •  Halaman ${pageIdx + 1} dari $totalPages"
                 canvas.drawText(footerText, MARGIN_H, PAGE_HEIGHT - 18f, footerPaint)
 
                 document.finishPage(page)
