@@ -1,6 +1,7 @@
 package com.example.data
 
 import androidx.annotation.Keep
+import androidx.compose.runtime.Immutable
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentId
 import com.google.firebase.firestore.IgnoreExtraProperties
@@ -21,6 +22,7 @@ data class SavingsRow(
     val tabungan: String = "",
     val nominal: Long = 0L,
     val tanggal: String = "",
+    val keterangan: String = "",
     @ServerTimestamp val createdAt: Timestamp? = null,
     @ServerTimestamp val updatedAt: Timestamp? = null,
 )
@@ -38,15 +40,20 @@ data class TargetConfig(
     @ServerTimestamp val updatedAt: Timestamp? = null,
 )
 
+@Immutable
 data class TableRowSlot(
     val rowIndex: Int,
     val tabungan: String = "",
     val nominal: Long = 0L,
     val tanggal: String = "",
+    val keterangan: String = "",
     val persisted: Boolean = false,
 ) {
     val hasContent: Boolean
-        get() = tabungan.isNotBlank() || nominal > 0L || tanggal.isNotBlank()
+        get() = tabungan.isNotBlank() ||
+            nominal > 0L ||
+            tanggal.isNotBlank() ||
+            keterangan.isNotBlank()
 }
 
 data class SavingsRowInput(
@@ -54,6 +61,7 @@ data class SavingsRowInput(
     val tabungan: String,
     val nominal: Long,
     val tanggal: String,
+    val keterangan: String = "",
 )
 
 enum class AutoFillInterval(val label: String, val daysStep: Long, val monthsStep: Long) {
@@ -74,15 +82,64 @@ sealed interface UiState<out T> {
     data class Error(val message: String) : UiState<Nothing>
 }
 
+@Immutable
+data class TableSummaryInfo(
+    val totalNominal: Long,
+    val filledRows: Int,
+    val totalDataRows: Int,
+    val targetAmount: Long = 0L,
+    val filteredNominal: Long = totalNominal,
+    val filteredRows: Int = totalDataRows,
+    val isFiltered: Boolean = false,
+) {
+    val completionPercent: Int
+        get() = if (targetAmount > 0L) {
+            ((totalNominal.toDouble() / targetAmount.toDouble()) * 100.0)
+                .toInt()
+                .coerceIn(0, 100)
+        } else {
+            0
+        }
+
+    val remainingToTarget: Long
+        get() = if (targetAmount > 0L) (targetAmount - totalNominal).coerceAtLeast(0L) else 0L
+}
+
+fun computeTableSummary(
+    allSlots: List<TableRowSlot>,
+    filteredSlots: List<TableRowSlot>,
+    targetAmount: Long = 0L,
+    isFiltered: Boolean = false,
+): TableSummaryInfo {
+    val totalNominal = allSlots.sumOf { it.nominal }
+    val filledRows = allSlots.count { it.hasContent }
+    val filteredNominal = if (isFiltered) filteredSlots.sumOf { it.nominal } else totalNominal
+    return TableSummaryInfo(
+        totalNominal = totalNominal,
+        filledRows = filledRows,
+        totalDataRows = allSlots.size,
+        targetAmount = targetAmount,
+        filteredNominal = filteredNominal,
+        filteredRows = filteredSlots.size,
+        isFiltered = isFiltered,
+    )
+}
+
+private val idNumberFormatter: ThreadLocal<NumberFormat> = ThreadLocal.withInitial {
+    NumberFormat.getNumberInstance(Locale.forLanguageTag("id-ID"))
+}
+
 fun docIdForRow(rowIndex: Int): String =
     "row_${rowIndex.toString().padStart(2, '0')}"
 
 fun formatRupiah(amount: Long): String {
-    val formatter = NumberFormat.getNumberInstance(Locale.forLanguageTag("id-ID"))
+    val formatter = idNumberFormatter.get()
+        ?: NumberFormat.getNumberInstance(Locale.forLanguageTag("id-ID"))
     return "Rp ${formatter.format(amount)}"
 }
 
 fun formatNumberOnly(amount: Long): String {
-    val formatter = NumberFormat.getNumberInstance(Locale.forLanguageTag("id-ID"))
+    val formatter = idNumberFormatter.get()
+        ?: NumberFormat.getNumberInstance(Locale.forLanguageTag("id-ID"))
     return formatter.format(amount)
 }

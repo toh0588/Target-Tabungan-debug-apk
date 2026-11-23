@@ -58,6 +58,19 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+internal fun parseIndonesianDateMillisOrNull(dateText: String): Long? {
+    val trimmed = dateText.trim()
+    if (trimmed.isEmpty()) return null
+    return try {
+        val parser = SimpleDateFormat("dd/MM/yyyy", Locale.forLanguageTag("id-ID")).apply {
+            isLenient = false
+        }
+        parser.parse(trimmed)?.time
+    } catch (_: Exception) {
+        null
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditRowSheet(
@@ -65,23 +78,40 @@ fun EditRowSheet(
     totalRows: Int,
     isMutating: Boolean,
     onDismiss: () -> Unit,
-    onSave: (rowIndex: Int, tabungan: String, nominal: Long, tanggal: String, moveNext: Boolean) -> Unit,
+    onSave: (
+        rowIndex: Int,
+        tabungan: String,
+        nominal: Long,
+        tanggal: String,
+        keterangan: String,
+        moveNext: Boolean,
+    ) -> Unit,
     onClear: (rowIndex: Int) -> Unit,
     onNavigateRow: (targetRowIndex: Int) -> Unit,
 ) {
+    val isEditingExisting = slot.hasContent || slot.persisted
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var tabungan by remember(slot.rowIndex) { mutableStateOf(slot.tabungan) }
-    var nominalText by remember(slot.rowIndex) {
+    var tabungan by remember(slot.rowIndex, slot.tabungan) { mutableStateOf(slot.tabungan) }
+    var nominalText by remember(slot.rowIndex, slot.nominal) {
         mutableStateOf(if (slot.nominal > 0L) slot.nominal.toString() else "")
     }
-    var tanggal by remember(slot.rowIndex) { mutableStateOf(slot.tanggal) }
+    var tanggal by remember(slot.rowIndex, slot.tanggal) { mutableStateOf(slot.tanggal) }
+    var keterangan by remember(slot.rowIndex, slot.keterangan) { mutableStateOf(slot.keterangan) }
     var showDatePicker by remember { mutableStateOf(false) }
 
     val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.forLanguageTag("id-ID")) }
+    val parsedNominal = nominalText.toLongOrNull() ?: 0L
+    val hasChanges = tabungan.trim() != slot.tabungan ||
+        parsedNominal != slot.nominal ||
+        tanggal.trim() != slot.tanggal ||
+        keterangan.trim() != slot.keterangan
 
     if (showDatePicker) {
+        val initialMillis = remember(tanggal) {
+            parseIndonesianDateMillisOrNull(tanggal) ?: System.currentTimeMillis()
+        }
         val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = System.currentTimeMillis()
+            initialSelectedDateMillis = initialMillis
         )
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
@@ -114,6 +144,7 @@ fun EditRowSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .navigationBarsPadding()
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 24.dp),
@@ -123,11 +154,24 @@ fun EditRowSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = "Baris #${slot.rowIndex} dari $totalRows",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (isEditingExisting) {
+                            "Edit Baris #${slot.rowIndex} dari $totalRows"
+                        } else {
+                            "Isi Baris #${slot.rowIndex} dari $totalRows"
+                        },
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    if (isEditingExisting) {
+                        Text(
+                            text = "Perbarui tabungan, nominal, tanggal, atau keterangan",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
                         onClick = { onNavigateRow(slot.rowIndex - 1) },
@@ -177,9 +221,15 @@ fun EditRowSheet(
                 placeholder = { Text("Contoh: 50000") },
                 prefix = { Text("Rp ") },
                 supportingText = {
-                    val parsed = nominalText.toLongOrNull() ?: 0L
-                    if (parsed > 0L) {
-                        Text(formatRupiah(parsed))
+                    if (isEditingExisting && parsedNominal != slot.nominal) {
+                        val diff = parsedNominal - slot.nominal
+                        val diffSign = if (diff > 0L) "+" else "-"
+                        val absDiff = kotlin.math.abs(diff)
+                        Text(
+                            "${formatRupiah(parsedNominal)} (Sebelumnya ${formatRupiah(slot.nominal)}, $diffSign${formatRupiah(absDiff)})"
+                        )
+                    } else if (parsedNominal > 0L) {
+                        Text(formatRupiah(parsedNominal))
                     }
                 },
                 singleLine = true,
@@ -197,6 +247,14 @@ fun EditRowSheet(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                if (nominalText.isNotEmpty()) {
+                    FilterChip(
+                        selected = false,
+                        onClick = { nominalText = "" },
+                        label = { Text("Nol-kan") },
+                        modifier = Modifier.testTag("reset_nominal_chip"),
+                    )
+                }
                 val quickAmounts = listOf(
                     10_000L to "+10rb",
                     25_000L to "+25rb",
@@ -241,6 +299,24 @@ fun EditRowSheet(
                     .testTag("input_tanggal"),
             )
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = keterangan,
+                onValueChange = { if (it.length <= 200) keterangan = it },
+                label = { Text("Keterangan (Kolom 4)") },
+                placeholder = { Text("Contoh: Transfer BCA / Setoran rutin") },
+                maxLines = 3,
+                supportingText = {
+                    if (keterangan.isNotEmpty()) {
+                        Text("${keterangan.length}/200 karakter")
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("input_keterangan"),
+            )
+
             Spacer(modifier = Modifier.height(8.dp))
 
             Row(
@@ -266,6 +342,19 @@ fun EditRowSheet(
                         label = { Text("Tabungan ${slot.rowIndex}") },
                     )
                 }
+                if (isEditingExisting && hasChanges) {
+                    FilterChip(
+                        selected = false,
+                        onClick = {
+                            tabungan = slot.tabungan
+                            nominalText = if (slot.nominal > 0L) slot.nominal.toString() else ""
+                            tanggal = slot.tanggal
+                            keterangan = slot.keterangan
+                        },
+                        label = { Text("Batal Ubah") },
+                        modifier = Modifier.testTag("revert_row_chip"),
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(18.dp))
@@ -274,7 +363,7 @@ fun EditRowSheet(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                if (slot.persisted || slot.hasContent) {
+                if (isEditingExisting) {
                     OutlinedButton(
                         onClick = { onClear(slot.rowIndex) },
                         enabled = !isMutating,
@@ -297,8 +386,7 @@ fun EditRowSheet(
                 if (slot.rowIndex < totalRows) {
                     OutlinedButton(
                         onClick = {
-                            val parsedNominal = nominalText.toLongOrNull() ?: 0L
-                            onSave(slot.rowIndex, tabungan, parsedNominal, tanggal, true)
+                            onSave(slot.rowIndex, tabungan, parsedNominal, tanggal, keterangan, true)
                         },
                         enabled = !isMutating,
                         modifier = Modifier
@@ -312,8 +400,7 @@ fun EditRowSheet(
 
                 Button(
                     onClick = {
-                        val parsedNominal = nominalText.toLongOrNull() ?: 0L
-                        onSave(slot.rowIndex, tabungan, parsedNominal, tanggal, false)
+                        onSave(slot.rowIndex, tabungan, parsedNominal, tanggal, keterangan, false)
                     },
                     enabled = !isMutating,
                     modifier = Modifier
@@ -321,7 +408,14 @@ fun EditRowSheet(
                         .height(48.dp)
                         .testTag("save_row_button"),
                 ) {
-                    Text("Simpan")
+                    Text(
+                        text = when {
+                            isMutating -> "Menyimpan..."
+                            isEditingExisting -> "Simpan Perubahan"
+                            else -> "Simpan"
+                        },
+                        maxLines = 1,
+                    )
                 }
             }
         }
@@ -578,7 +672,7 @@ fun ClearAllConfirmDialog(
         onDismissRequest = onDismiss,
         title = { Text("Kosongkan Semua Baris?") },
         text = {
-            Text("Semua isi pada kolom Tabungan, Nominal, dan Tanggal akan dihapus, namun struktur 61 baris tabel tetap dipertahankan.")
+            Text("Semua isi pada kolom Tabungan, Nominal, Tanggal, dan Keterangan akan dihapus, namun struktur 61 baris tabel tetap dipertahankan.")
         },
         confirmButton = {
             Button(

@@ -32,6 +32,7 @@ service cloud.firestore {
              data.tabungan is string && data.tabungan.size() <= 120 &&
              data.nominal is int && data.nominal >= 0 && data.nominal <= 1000000000000 &&
              data.tanggal is string && data.tanggal.size() <= 20 &&
+             (!('keterangan' in data) || (data.keterangan is string && data.keterangan.size() <= 200)) &&
              data.createdAt is timestamp && data.createdAt <= request.time &&
              data.updatedAt is timestamp && data.updatedAt <= request.time;
     }
@@ -53,7 +54,7 @@ service cloud.firestore {
       allow create: if isOwner(userId) &&
                        isValidId(rowId) &&
                        incoming().keys().hasAll(['userId', 'rowIndex', 'tabungan', 'nominal', 'tanggal', 'createdAt', 'updatedAt']) &&
-                       incoming().keys().hasOnly(['userId', 'rowIndex', 'tabungan', 'nominal', 'tanggal', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'rowIndex', 'tabungan', 'nominal', 'tanggal', 'keterangan', 'createdAt', 'updatedAt']) &&
                        isValidSavingsRow(incoming(), userId);
 
       allow update: if isOwner(userId) &&
@@ -61,7 +62,7 @@ service cloud.firestore {
                        isValidSavingsRow(incoming(), userId) &&
                        incoming().userId == existing().userId &&
                        incoming().createdAt == existing().createdAt &&
-                       incoming().diff(existing()).affectedKeys().hasOnly(['rowIndex', 'tabungan', 'nominal', 'tanggal', 'updatedAt']);
+                       incoming().diff(existing()).affectedKeys().hasOnly(['rowIndex', 'tabungan', 'nominal', 'tanggal', 'keterangan', 'updatedAt']);
 
       allow delete: if isOwner(userId) && isValidId(rowId);
     }

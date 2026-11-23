@@ -2,7 +2,7 @@
   "entities": {
     "SavingsRow": {
       "title": "SavingsRow",
-      "description": "A single row in the 3-column Target Tabungan savings ledger (Tabungan, Nominal, Tanggal/Bulan/Tahun).",
+      "description": "A single row in the 4-column Target Tabungan savings ledger (Tabungan, Nominal, Tanggal/Bulan/Tahun, Keterangan).",
       "type": "object",
       "properties": {
         "userId": {
@@ -15,7 +15,7 @@
         },
         "tabungan": {
           "type": "string",
-          "description": "Column 1: Savings entry label or description."
+          "description": "Column 1: Savings entry label."
         },
         "nominal": {
           "type": "integer",
@@ -24,6 +24,10 @@
         "tanggal": {
           "type": "string",
           "description": "Column 3: Date formatted as dd/MM/yyyy."
+        },
+        "keterangan": {
+          "type": "string",
+          "description": "Column 4: Optional notes or remarks for the savings entry."
         },
         "createdAt": {
           "type": "string",

@@ -103,6 +103,7 @@ class SavingsRepository(
         tabungan: String,
         nominal: Long,
         tanggal: String,
+        keterangan: String = "",
     ): Result<Unit> {
         val rowId = docIdForRow(rowIndex)
         val path = "users/$userId/savings_rows/$rowId"
@@ -112,6 +113,7 @@ class SavingsRepository(
             val cleanTabungan = tabungan.trim().take(120)
             val cleanNominal = nominal.coerceIn(0L, MAX_NOMINAL)
             val cleanTanggal = tanggal.trim().take(20)
+            val cleanKeterangan = keterangan.trim().take(200)
 
             val docRef = db.collection("users")
                 .document(uid)
@@ -128,6 +130,7 @@ class SavingsRepository(
                             "tabungan" to cleanTabungan,
                             "nominal" to cleanNominal,
                             "tanggal" to cleanTanggal,
+                            "keterangan" to cleanKeterangan,
                             "updatedAt" to FieldValue.serverTimestamp(),
                         )
                     )
@@ -140,6 +143,7 @@ class SavingsRepository(
                             "tabungan" to cleanTabungan,
                             "nominal" to cleanNominal,
                             "tanggal" to cleanTanggal,
+                            "keterangan" to cleanKeterangan,
                             "createdAt" to FieldValue.serverTimestamp(),
                             "updatedAt" to FieldValue.serverTimestamp(),
                         )
@@ -194,6 +198,7 @@ class SavingsRepository(
                 val cleanTabungan = input.tabungan.trim().take(120)
                 val cleanNominal = input.nominal.coerceIn(0L, MAX_NOMINAL)
                 val cleanTanggal = input.tanggal.trim().take(20)
+                val cleanKeterangan = input.keterangan.trim().take(200)
 
                 if (rowId in existingIds) {
                     batch.update(
@@ -203,6 +208,7 @@ class SavingsRepository(
                             "tabungan" to cleanTabungan,
                             "nominal" to cleanNominal,
                             "tanggal" to cleanTanggal,
+                            "keterangan" to cleanKeterangan,
                             "updatedAt" to FieldValue.serverTimestamp(),
                         )
                     )
@@ -215,6 +221,7 @@ class SavingsRepository(
                             "tabungan" to cleanTabungan,
                             "nominal" to cleanNominal,
                             "tanggal" to cleanTanggal,
+                            "keterangan" to cleanKeterangan,
                             "createdAt" to FieldValue.serverTimestamp(),
                             "updatedAt" to FieldValue.serverTimestamp(),
                         )

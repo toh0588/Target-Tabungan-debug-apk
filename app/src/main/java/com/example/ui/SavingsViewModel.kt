@@ -11,8 +11,10 @@ import com.example.data.SavingsRepository
 import com.example.data.SavingsRow
 import com.example.data.SavingsRowInput
 import com.example.data.TableRowSlot
+import com.example.data.TableSummaryInfo
 import com.example.data.TargetConfig
 import com.example.data.UiState
+import com.example.data.computeTableSummary
 import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +36,7 @@ data class SavingsDashboardData(
     val filteredSlots: List<TableRowSlot>,
     val totalSaved: Long,
     val filledCount: Int,
+    val summaryInfo: TableSummaryInfo,
     val filter: RowFilter,
     val searchQuery: String,
 )
@@ -78,6 +81,7 @@ class SavingsViewModel(
                     tabungan = existing.tabungan,
                     nominal = existing.nominal,
                     tanggal = existing.tanggal,
+                    keterangan = existing.keterangan,
                     persisted = true,
                 )
             } else {
@@ -98,22 +102,29 @@ class SavingsViewModel(
             } else {
                 slot.tabungan.lowercase(idLocale).contains(normalizedQuery) ||
                     slot.tanggal.lowercase(idLocale).contains(normalizedQuery) ||
+                    slot.keterangan.lowercase(idLocale).contains(normalizedQuery) ||
                     slot.nominal.toString().contains(normalizedQuery) ||
                     slot.rowIndex.toString() == normalizedQuery
             }
             matchesFilter && matchesQuery
         }
 
-        val totalSaved = allSlots.sumOf { it.nominal }
-        val filledCount = allSlots.count { it.hasContent }
+        val isFiltered = filter != RowFilter.SEMUA || normalizedQuery.isNotBlank()
+        val summaryInfo = computeTableSummary(
+            allSlots = allSlots,
+            filteredSlots = filteredSlots,
+            targetAmount = effectiveConfig.targetAmount,
+            isFiltered = isFiltered,
+        )
 
         UiState.Success(
             SavingsDashboardData(
                 config = effectiveConfig,
                 allSlots = allSlots,
                 filteredSlots = filteredSlots,
-                totalSaved = totalSaved,
-                filledCount = filledCount,
+                totalSaved = summaryInfo.totalNominal,
+                filledCount = summaryInfo.filledRows,
+                summaryInfo = summaryInfo,
                 filter = filter,
                 searchQuery = query,
             )
@@ -153,20 +164,34 @@ class SavingsViewModel(
         tabungan: String,
         nominal: Long,
         tanggal: String,
+        keterangan: String = "",
         onComplete: () -> Unit = {},
     ) {
         viewModelScope.launch {
             _isMutating.value = true
-            val result = repository.saveRow(
-                userId = currentUserId,
-                rowIndex = rowIndex,
-                tabungan = tabungan,
-                nominal = nominal,
-                tanggal = tanggal,
-            )
+            val isCleared = tabungan.isBlank() &&
+                nominal <= 0L &&
+                tanggal.isBlank() &&
+                keterangan.isBlank()
+            val result = if (isCleared) {
+                repository.clearRow(currentUserId, rowIndex)
+            } else {
+                repository.saveRow(
+                    userId = currentUserId,
+                    rowIndex = rowIndex,
+                    tabungan = tabungan,
+                    nominal = nominal,
+                    tanggal = tanggal,
+                    keterangan = keterangan,
+                )
+            }
             _isMutating.value = false
             result.onSuccess {
-                _actionMessage.value = "Baris #$rowIndex disimpan"
+                _actionMessage.value = if (isCleared) {
+                    "Baris #$rowIndex dikosongkan"
+                } else {
+                    "Baris #$rowIndex diperbarui"
+                }
                 onComplete()
             }.onFailure { e ->
                 _actionError.value = e.localizedMessage ?: "Gagal menyimpan baris #$rowIndex"
@@ -227,6 +252,7 @@ class SavingsViewModel(
                     tabungan = "$prefix ${slot.rowIndex}",
                     nominal = nominalPerRow,
                     tanggal = dateStr,
+                    keterangan = slot.keterangan,
                 )
             }
 

@@ -2,7 +2,7 @@
 
 Repositori: **`toh0588/Target-Tabungan-debug-apk`**
 
-Aplikasi Android **Target Tabungan** dengan tabel 3 kolom (**Tabungan**, **Nominal**, **Tanggal/Bulan/Tahun**) 61 baris, teks berjalan (*Selamat Datang di Aplikasi Hermanto*), sinkronisasi **Firebase Firestore**, dan ekspor dokumen ke **PDF**.
+Aplikasi Android **Target Tabungan** dengan tabel 4 kolom (**Tabungan**, **Nominal**, **Tanggal/Bulan/Tahun**, **Keterangan**) 61 baris, teks berjalan (*Selamat Datang di Aplikasi Hermanto*), sinkronisasi **Firebase Firestore**, dan ekspor dokumen ke **PDF**.
 
 ## Folder Artefak Bangunan (`artifacts/`)
 

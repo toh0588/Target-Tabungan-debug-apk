@@ -105,7 +105,7 @@ fun AuthScreen(
                         shape = RoundedCornerShape(50),
                     ) {
                         Text(
-                            text = "Tabel 3 Kolom × 61 Baris",
+                            text = "Tabel 4 Kolom × 61 Baris",
                             style = MaterialTheme.typography.labelMedium,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         )
@@ -132,7 +132,7 @@ fun AuthScreen(
                     FeatureBullet(
                         icon = Icons.Default.TableChart,
                         title = "Kolom Terstruktur",
-                        subtitle = "Tabungan, Nominal, dan Tanggal/Bulan/Tahun dalam 61 baris siap isi.",
+                        subtitle = "Tabungan, Nominal, Tanggal/Bulan/Tahun, dan Keterangan dalam 61 baris siap isi.",
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     FeatureBullet(

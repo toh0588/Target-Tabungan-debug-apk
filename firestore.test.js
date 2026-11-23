@@ -87,6 +87,7 @@ test("Owner can create, partial-update, list, and delete savings_rows", async ()
       tabungan: "Setoran Awal",
       nominal: 50000,
       tanggal: "22/11/2026",
+      keterangan: "Transfer bank BCA",
       createdAt: created,
       updatedAt: created,
     })
@@ -102,13 +103,14 @@ test("Owner can create, partial-update, list, and delete savings_rows", async ()
       .get()
   );
 
-  // Partial update preserving createdAt and userId
+  // Partial update preserving createdAt and userId, including keterangan
   await assertSucceeds(
     rowRef.update({
       rowIndex: 1,
       tabungan: "Setoran Pertama",
       nominal: 100000,
       tanggal: "23/11/2026",
+      keterangan: "Setoran tunai",
       updatedAt: new Date(Date.now() - 1000),
     })
   );
@@ -134,6 +136,21 @@ test("Rejects invalid savings_rows payloads, ghost fields, future timestamps, an
       tabungan: "Ghost ID",
       nominal: 25000,
       tanggal: "22/11/2026",
+      keterangan: "",
+      createdAt: created,
+      updatedAt: created,
+    })
+  );
+
+  // Oversized keterangan (> 200 chars) must fail
+  await assertFails(
+    rowsCol.doc("row_02").set({
+      userId: ALICE_UID,
+      rowIndex: 2,
+      tabungan: "Panjang",
+      nominal: 25000,
+      tanggal: "22/11/2026",
+      keterangan: "x".repeat(201),
       createdAt: created,
       updatedAt: created,
     })
@@ -147,6 +164,7 @@ test("Rejects invalid savings_rows payloads, ghost fields, future timestamps, an
       tabungan: "Negatif",
       nominal: -5000,
       tanggal: "22/11/2026",
+      keterangan: "",
       createdAt: created,
       updatedAt: created,
     })
@@ -160,6 +178,7 @@ test("Rejects invalid savings_rows payloads, ghost fields, future timestamps, an
       tabungan: "Masa Depan",
       nominal: 10000,
       tanggal: "22/11/2026",
+      keterangan: "",
       createdAt: new Date(Date.now() + 60000),
       updatedAt: created,
     })
@@ -173,6 +192,7 @@ test("Rejects invalid savings_rows payloads, ghost fields, future timestamps, an
       tabungan: "Valid",
       nominal: 50000,
       tanggal: "22/11/2026",
+      keterangan: "Catatan awal",
       createdAt: created,
       updatedAt: created,
     })

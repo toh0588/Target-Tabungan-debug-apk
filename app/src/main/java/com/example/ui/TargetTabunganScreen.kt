@@ -3,30 +3,22 @@ package com.example.ui
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AutoFixHigh
@@ -38,7 +30,6 @@ import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -50,14 +41,11 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -70,12 +58,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.credentials.CredentialManager
@@ -86,13 +71,10 @@ import com.example.data.RowFilter
 import com.example.data.TableRowSlot
 import com.example.data.TargetConfig
 import com.example.data.UiState
-import com.example.data.formatNumberOnly
-import com.example.data.formatRupiah
 import com.example.pdf.SavingsPdfGenerator
-import com.example.ui.theme.JetBrainsMonoFamily
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TargetTabunganScreen(
     viewModel: SavingsViewModel,
@@ -102,6 +84,7 @@ fun TargetTabunganScreen(
     val scope = rememberCoroutineScope()
     val credentialManager = remember(context) { CredentialManager.create(context) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val tableListState = rememberLazyListState()
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isMutating by viewModel.isMutating.collectAsStateWithLifecycle()
@@ -214,8 +197,8 @@ fun TargetTabunganScreen(
                             overflow = TextOverflow.Ellipsis,
                         )
                         val rowCountText = currentData?.let {
-                            "3 Kolom × ${it.allSlots.size + 1} Baris"
-                        } ?: "3 Kolom × 61 Baris"
+                            "4 Kolom × ${it.allSlots.size + 1} Baris"
+                        } ?: "4 Kolom × 61 Baris"
                         Text(
                             text = rowCountText,
                             style = MaterialTheme.typography.labelSmall,
@@ -239,10 +222,9 @@ fun TargetTabunganScreen(
                         }
                         IconButton(
                             onClick = {
-                                val safeName = currentData.config.title
-                                    .ifBlank { "Target_Tabungan" }
-                                    .replace(Regex("[^a-zA-Z0-9_\\-]"), "_")
-                                createPdfLauncher.launch("$safeName.pdf")
+                                createPdfLauncher.launch(
+                                    SavingsPdfGenerator.buildSafePdfFileName(currentData.config.title)
+                                )
                             },
                             enabled = !isExportingPdf,
                             modifier = Modifier.testTag("topbar_pdf_button"),
@@ -326,10 +308,9 @@ fun TargetTabunganScreen(
             if (currentData != null) {
                 ExtendedFloatingActionButton(
                     onClick = {
-                        val safeName = currentData.config.title
-                            .ifBlank { "Target_Tabungan" }
-                            .replace(Regex("[^a-zA-Z0-9_\\-]"), "_")
-                        createPdfLauncher.launch("$safeName.pdf")
+                        createPdfLauncher.launch(
+                            SavingsPdfGenerator.buildSafePdfFileName(currentData.config.title)
+                        )
                     },
                     icon = {
                         if (isExportingPdf) {
@@ -433,6 +414,17 @@ fun TargetTabunganScreen(
                     ) {
                         val isWideScreen = maxWidth >= 760.dp
 
+                        fun jumpAndScrollToRow(rowIdx: Int) {
+                            editingRowIndex = rowIdx
+                            val filteredIndex = data.filteredSlots.indexOfFirst { it.rowIndex == rowIdx }
+                            if (filteredIndex >= 0) {
+                                val listOffset = if (isWideScreen) 1 else 2
+                                scope.launch {
+                                    tableListState.animateScrollToItem(filteredIndex + listOffset)
+                                }
+                            }
+                        }
+
                         if (isWideScreen) {
                             Row(
                                 modifier = Modifier
@@ -453,7 +445,7 @@ fun TargetTabunganScreen(
                                         onEditConfig = { showConfigDialog = true },
                                         onOpenPdf = { openPdf(data.config, data.allSlots) },
                                         onSharePdf = { sharePdf(data.config, data.allSlots) },
-                                        onJumpToRow = { rowIdx -> editingRowIndex = rowIdx },
+                                        onJumpToRow = ::jumpAndScrollToRow,
                                     )
                                     FilterAndSearchBar(
                                         filter = data.filter,
@@ -463,9 +455,11 @@ fun TargetTabunganScreen(
                                     )
                                 }
 
-                                LedgerTableList(
+                                SavingsLedgerTable(
                                     slots = data.filteredSlots,
                                     totalTableRows = data.allSlots.size + 1,
+                                    summaryInfo = data.summaryInfo,
+                                    listState = tableListState,
                                     onRowClick = { editingRowIndex = it.rowIndex },
                                     modifier = Modifier.weight(1f),
                                 )
@@ -475,9 +469,11 @@ fun TargetTabunganScreen(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.TopCenter,
                             ) {
-                                LedgerTableList(
+                                SavingsLedgerTable(
                                     slots = data.filteredSlots,
                                     totalTableRows = data.allSlots.size + 1,
+                                    summaryInfo = data.summaryInfo,
+                                    listState = tableListState,
                                     onRowClick = { editingRowIndex = it.rowIndex },
                                     headerContent = {
                                         Column(
@@ -494,7 +490,7 @@ fun TargetTabunganScreen(
                                                 onEditConfig = { showConfigDialog = true },
                                                 onOpenPdf = { openPdf(data.config, data.allSlots) },
                                                 onSharePdf = { sharePdf(data.config, data.allSlots) },
-                                                onJumpToRow = { rowIdx -> editingRowIndex = rowIdx },
+                                                onJumpToRow = ::jumpAndScrollToRow,
                                             )
                                             FilterAndSearchBar(
                                                 filter = data.filter,
@@ -523,8 +519,8 @@ fun TargetTabunganScreen(
             totalRows = currentData.allSlots.size,
             isMutating = isMutating,
             onDismiss = { editingRowIndex = null },
-            onSave = { rowIdx, tabungan, nominal, tanggal, moveNext ->
-                viewModel.saveRow(rowIdx, tabungan, nominal, tanggal) {
+            onSave = { rowIdx, tabungan, nominal, tanggal, keterangan, moveNext ->
+                viewModel.saveRow(rowIdx, tabungan, nominal, tanggal, keterangan) {
                     if (moveNext && rowIdx < currentData.allSlots.size) {
                         editingRowIndex = rowIdx + 1
                     } else {
@@ -601,7 +597,7 @@ private fun FilterAndSearchBar(
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchChange,
-            placeholder = { Text("Cari tabungan, nominal, atau tanggal...") },
+            placeholder = { Text("Cari tabungan, nominal, tanggal, atau keterangan...") },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
@@ -629,226 +625,6 @@ private fun FilterAndSearchBar(
                     modifier = Modifier.testTag("filter_${item.name.lowercase()}"),
                 )
             }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun LedgerTableList(
-    slots: List<TableRowSlot>,
-    totalTableRows: Int,
-    onRowClick: (TableRowSlot) -> Unit,
-    modifier: Modifier = Modifier,
-    headerContent: (@Composable () -> Unit)? = null,
-) {
-    LazyColumn(
-        modifier = modifier,
-        contentPadding = PaddingValues(bottom = 96.dp),
-    ) {
-        if (headerContent != null) {
-            item(key = "summary_header") {
-                headerContent()
-            }
-        }
-
-        // Row 1 of 61: Sticky 3-Column Table Header
-        stickyHeader(key = "table_header_row") {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.background)
-                    .padding(horizontal = 16.dp),
-            ) {
-                Surface(
-                    color = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("table_header_row"),
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.col_tabungan),
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(0.42f),
-                        )
-                        Text(
-                            text = stringResource(R.string.col_nominal),
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.End,
-                            modifier = Modifier
-                                .weight(0.28f)
-                                .padding(end = 8.dp),
-                        )
-                        Text(
-                            text = stringResource(R.string.col_tanggal),
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.End,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(0.30f),
-                        )
-                    }
-                }
-            }
-        }
-
-        if (slots.isEmpty()) {
-            item(key = "empty_filter") {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                    shape = RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp),
-                ) {
-                    Text(
-                        text = "Tidak ada baris yang sesuai dengan filter.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(24.dp),
-                    )
-                }
-            }
-        } else {
-            items(
-                items = slots,
-                key = { it.rowIndex },
-            ) { slot ->
-                val isLast = slot == slots.last()
-                TableDataRow(
-                    slot = slot,
-                    isLast = isLast,
-                    onClick = { onRowClick(slot) },
-                )
-            }
-        }
-
-        item(key = "table_footer_note") {
-            Text(
-                text = "Total $totalTableRows baris (1 baris header + ${totalTableRows - 1} baris data). Ketuk baris mana saja untuk mengisi.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 14.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun TableDataRow(
-    slot: TableRowSlot,
-    isLast: Boolean,
-    onClick: () -> Unit,
-) {
-    val bgColor = if (slot.rowIndex % 2 == 0) {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
-    } else {
-        MaterialTheme.colorScheme.surface
-    }
-    val shape = if (isLast) {
-        RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)
-    } else {
-        RoundedCornerShape(0.dp)
-    }
-
-    Surface(
-        color = bgColor,
-        shape = shape,
-        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .heightIn(min = 52.dp)
-            .clickable(onClick = onClick)
-            .testTag("table_row_${slot.rowIndex}"),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Kolom 1: Tabungan (with subtle 01..60 row number badge)
-            Row(
-                modifier = Modifier.weight(0.42f),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = slot.rowIndex.toString().padStart(2, '0'),
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontFamily = JetBrainsMonoFamily,
-                    ),
-                    color = if (slot.hasContent) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                    },
-                    modifier = Modifier.width(24.dp),
-                )
-                Text(
-                    text = slot.tabungan.ifBlank { stringResource(R.string.empty_row_hint) },
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = if (slot.tabungan.isNotBlank()) FontWeight.Medium else FontWeight.Normal,
-                    color = if (slot.tabungan.isNotBlank()) {
-                        MaterialTheme.colorScheme.onSurface
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
-                    },
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-
-            // Kolom 2: Nominal
-            Text(
-                text = if (slot.nominal > 0L) formatNumberOnly(slot.nominal) else "—",
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = JetBrainsMonoFamily,
-                    fontWeight = if (slot.nominal > 0L) FontWeight.SemiBold else FontWeight.Normal,
-                ),
-                color = if (slot.nominal > 0L) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                },
-                textAlign = TextAlign.End,
-                maxLines = 1,
-                modifier = Modifier
-                    .weight(0.28f)
-                    .padding(end = 8.dp),
-            )
-
-            // Kolom 3: Tanggal/Bulan/Tahun
-            Text(
-                text = slot.tanggal.ifBlank { "—" },
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = JetBrainsMonoFamily,
-                ),
-                color = if (slot.tanggal.isNotBlank()) {
-                    MaterialTheme.colorScheme.onSurface
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                },
-                textAlign = TextAlign.End,
-                maxLines = 1,
-                modifier = Modifier.weight(0.30f),
-            )
         }
     }
 }
